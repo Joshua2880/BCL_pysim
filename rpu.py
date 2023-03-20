@@ -1,6 +1,7 @@
 from typing import NewType
 from enum import Enum
 
+
 class RPU:
     bcl = NewType('bcl', int)
 
