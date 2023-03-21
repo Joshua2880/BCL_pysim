@@ -1,3 +1,4 @@
+import random
 from typing import NewType
 from enum import Enum
 
@@ -79,10 +80,10 @@ class RPU:
             b_2 = bool(n_2 & RPU.msb_mask) != bool(d_2 & RPU.msb_mask) and n_2 != 0
             b_3 = bool(n_3 & RPU.msb_mask) != bool(d_3 & RPU.msb_mask) and n_3 != 0
         elif self.z_cntr == 1:
-            b_0 = 0 <= n_0 < d_0 or d_0 < n_0 <= 0
-            b_1 = 0 <= n_1 < d_1 or d_1 < n_1 <= 0
-            b_2 = 0 <= n_2 < d_2 or d_2 < n_2 <= 0
-            b_3 = 0 <= n_3 < d_3 or d_3 < n_3 <= 0
+            b_0 = 0 <= n_0 < d_0
+            b_1 = 0 <= n_1 < d_1
+            b_2 = 0 <= n_2 < d_2
+            b_3 = 0 <= n_3 < d_3
         else:
             b_0 = (d_0 << 1) <= n_0
             b_1 = (d_1 << 1) <= n_1
@@ -113,6 +114,13 @@ class RPU:
 
         return z
 
+    def normalize_sign(self):
+        if self.e < 0:
+            self.a, self.b, self.c, self.d, \
+                self.e, self.f, self.g, self.h = \
+                -self.a, -self.b, -self.c, -self.d, \
+                    -self.e, -self.f, -self.g, -self.h
+
     def blft_ingest_x(self, x: bcl) -> bcl:
         if self.x_cntr == 0:
             if x & RPU.msb_mask:
@@ -128,15 +136,23 @@ class RPU:
                         self.g, self.h, self.e, self.f
         elif self.x_cntr < RPU.bcl_width:
             if x & RPU.msb_mask:
-                self.a, self.b, self.c, self.d, \
-                    self.e, self.f, self.g, self.h = \
-                    self.a << 1, self.b << 1, self.c, self.d, \
-                        self.e << 1, self.f << 1, self.g, self.h
+                if self.c & 1 or self.d & 1 or self.g & 1 or self.h & 1:
+                    self.a, self.b, self.c, self.d, \
+                        self.e, self.f, self.g, self.h = \
+                        self.a << 1, self.b << 1, self.c, self.d, \
+                            self.e << 1, self.f << 1, self.g, self.h
+                else:
+                    self.a, self.b, self.c, self.d, \
+                        self.e, self.f, self.g, self.h = \
+                        self.a, self.b, self.c >> 1, self.d >> 1, \
+                        self.e, self.f, self.g >> 1, self.h >> 1
             else:
                 self.a, self.b, self.c, self.d, \
                     self.e, self.f, self.g, self.h = \
                     self.a + self.c, self.b + self.d, self.a, self.b, \
                         self.e + self.g, self.f + self.h, self.e, self.f
+
+        self.normalize_sign()
 
         self.x_cntr += 1
         return RPU.bcl(x << 1)
@@ -156,15 +172,23 @@ class RPU:
                         self.f, self.e, self.h, self.g
         elif self.y_cntr < RPU.bcl_width:
             if y & RPU.msb_mask:
-                self.a, self.b, self.c, self.d, \
-                    self.e, self.f, self.g, self.h = \
-                    self.a << 1, self.b, self.c << 1, self.d, \
-                        self.e << 1, self.f, self.g << 1, self.h
+                if self.b & 1 or self.d & 1 or self.f & 1 or self.h & 1:
+                    self.a, self.b, self.c, self.d, \
+                        self.e, self.f, self.g, self.h = \
+                        self.a << 1, self.b, self.c << 1, self.d, \
+                            self.e << 1, self.f, self.g << 1, self.h
+                else:
+                    self.a, self.b, self.c, self.d, \
+                        self.e, self.f, self.g, self.h = \
+                        self.a, self.b >> 1, self.c, self.d >> 1, \
+                        self.e, self.f >> 1, self.g, self.h >> 1
             else:
                 self.a, self.b, self.c, self.d, \
                     self.e, self.f, self.g, self.h = \
                     self.a + self.b, self.a, self.c + self.d, self.c, \
                         self.e + self.f, self.e, self.g + self.h, self.g
+
+        self.normalize_sign()
 
         self.y_cntr += 1
         return RPU.bcl(y << 1)
@@ -187,15 +211,23 @@ class RPU:
                         self.a, self.b, self.c, self.d
         else:
             if self.emission_val:
-                self.a, self.b, self.c, self.d, \
-                    self.e, self.f, self.g, self.h = \
+                if self.a & 1 or self.b & 1 or self.c & 1 or self.d & 1:
                     self.a, self.b, self.c, self.d, \
-                        self.e << 1, self.f << 1, self.g << 1, self.h << 1
+                        self.e, self.f, self.g, self.h = \
+                        self.a, self.b, self.c, self.d, \
+                            self.e << 1, self.f << 1, self.g << 1, self.h << 1
+                else:
+                    self.a, self.b, self.c, self.d, \
+                        self.e, self.f, self.g, self.h = \
+                        self.a >> 1, self.b >> 1, self.c >> 1, self.d >> 1, \
+                            self.e, self.f, self.g, self.h
             else:
                 self.a, self.b, self.c, self.d, \
                     self.e, self.f, self.g, self.h = \
                     self.e, self.f, self.g, self.h, \
                         self.a - self.e, self.b - self.f, self.c - self.g, self.d - self.h
+
+        self.normalize_sign()
 
         self.z_cntr += 1
         return RPU.bcl(z)
@@ -229,20 +261,87 @@ class RPU:
 
 
 if __name__ == "__main__":
+    bit_f = "{0:0%db}" % RPU.bcl_width
     rpu = RPU()
     a = rpu.new(-5, 19)
-    print("{0:032b}".format(a))
+    print(bit_f.format(a))
+    assert (a == 0b11100111011101111111111111111111)
     b = rpu.new(15, 27)
-    print("{0:032b}".format(b))
+    print(bit_f.format(b))
+    assert (b == 0b01001101111111111111111111111111)
     c = rpu.add(a, b)
-    print("{0:032b}".format(c))
+    print(bit_f.format(c))
     assert (c == 0b01100101101110111010111111111111)
     d = rpu.sub(a, b)
-    print("{0:032b}".format(d))
+    print(bit_f.format(d))
     assert (d == 0b11011011001110011001010111111111)
     e = rpu.mul(a, b)
-    print("{0:032b}".format(e))
+    print(bit_f.format(e))
     assert (e == 0b11110010110111011101011111111111)
     f = rpu.div(a, b)
-    print("{0:032b}".format(f))
+    print(bit_f.format(f))
     assert (f == 0b11101111011101111111111111111111)
+
+    a = rpu.new(3713, 28276)
+    print(bit_f.format(a))
+    b = rpu.new(21946, 51272)
+    print(bit_f.format(b))
+    c = rpu.add(a, b)
+    print(bit_f.format(c))
+
+    a = rpu.new(-126, 122)
+    print(bit_f.format(a))
+    b = rpu.new(-116, -34)
+    print(bit_f.format(b))
+    c = rpu.add(a, b)
+    print(bit_f.format(c))
+    d = rpu.new(-126 * -34 + -116 * 122, 122 * -34)
+    print(bit_f.format(d))
+
+    a = rpu.new(-69, 123)
+    print(bit_f.format(a))
+    b = rpu.new(-53, 100)
+    print(bit_f.format(b))
+    c = rpu.add(a, b)
+    print(bit_f.format(c))
+    d = rpu.new(-4473, 4100)
+    print(bit_f.format(d))
+
+    a = rpu.new(-109, 0)
+    print(bit_f.format(a))
+    b = rpu.new(84, -106)
+    print(bit_f.format(b))
+    c = rpu.add(a, b)
+    print(bit_f.format(c))
+    d = rpu.new(-109 * 106, 0)
+    print(bit_f.format(d))
+
+    a = rpu.new(7, 84)
+    print(bit_f.format(a))
+    b = rpu.new(2, 127)
+    print(bit_f.format(b))
+    c = rpu.add(a, b)
+    print(bit_f.format(c))
+    d = rpu.new(1057, 10668)
+    print(bit_f.format(d))
+
+    n_d_bits = 8
+
+    for i in range(1 << 16):
+        n_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        d_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        n_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        d_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        a = rpu.new(n_0, d_0)
+        b = rpu.new(n_1, d_1)
+        c = rpu.add(a, b)
+        if d_0 < 0:
+            n_0 = -n_0
+            d_0 = -d_0
+        if d_1 < 0:
+            n_1 = -n_1
+            d_1 = -d_1
+        d = rpu.new(n_0 * d_1 + n_1 * d_0, d_0 * d_1)
+        if c != d:
+            print("%d: \n%d / %d = %s \n%d / %d = %s \n+ \n%s != \n%s\n" % (i, n_0, d_0, bit_f.format(a), n_1, d_1, bit_f.format(b), bit_f.format(d), bit_f.format(c)))
+        assert(c == d)
