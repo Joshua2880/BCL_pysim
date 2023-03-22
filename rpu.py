@@ -1,19 +1,25 @@
 import random
 from typing import NewType
 from enum import Enum
+import math
+
+
+class ZeroByZeroDivisionError(ArithmeticError):
+    pass
 
 
 class RPU:
     bcl = NewType('bcl', int)
 
-    bcl_width = 32
+    bcl_width = 64
     msb_mask = 1 << (bcl_width - 1)
 
     class Op(Enum):
         NOP = 0
         NEW = 1
-        LFT = 2
-        BLFT = 3
+        FRAC = 2
+        LFT = 3
+        BLFT = 4
 
     def __init__(self):
         self.a = 0
@@ -95,6 +101,31 @@ class RPU:
                                self.op == RPU.Op.BLFT and (b_0 == b_1 == b_2 == b_3 or self.x_cntr == self.y_cntr == RPU.bcl_width)
                                ) and not self.z_cntr >= RPU.bcl_width
         self.emission_val = b_0
+
+    def new(self, n: int, d: int) -> bcl:
+        if n == 0 and d == 0:
+            raise ZeroByZeroDivisionError
+        self.op = RPU.Op.NEW
+        self.set_registers(n, 0, 0, 0, d, 0, 0, 0)
+        self.init_cntrs()
+
+        z = RPU.bcl(0)
+
+        self.update_state()
+        while self.emission_ready:
+            z = self.blft_emmit_z(z)
+            self.update_state()
+
+        return z
+
+    def frac(self, x: bcl) -> (int, int):
+        self.op = RPU.Op.FRAC
+        self.set_registers(1, 0, 0, 0, 0, 0, 1, 0)
+        self.init_cntrs()
+
+        while self.x_cntr < RPU.bcl_width:
+            x = self.blft_ingest_x(x)
+        return self.a, self.e
 
     def blft(self, x: bcl, y: bcl, a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int) -> bcl:
         self.op = RPU.Op.BLFT
@@ -244,43 +275,28 @@ class RPU:
     def div(self, x: bcl, y: bcl) -> bcl:
         return self.blft(x, y, 0, 1, 0, 0, 0, 0, 1, 0)
 
-    def new(self, n: int, d: int) -> bcl:
-        self.op = RPU.Op.NEW
-        self.a = n
-        self.e = d
-        self.init_cntrs()
-
-        z = RPU.bcl(0)
-
-        self.update_state()
-        while self.emission_ready:
-            z = self.blft_emmit_z(z)
-            self.update_state()
-
-        return z
-
 
 if __name__ == "__main__":
     bit_f = "{0:0%db}" % RPU.bcl_width
     rpu = RPU()
     a = rpu.new(-5, 19)
     print(bit_f.format(a))
-    assert (a == 0b11100111011101111111111111111111)
+    assert (a == 0b1110011101110111111111111111111111111111111111111111111111111111)
     b = rpu.new(15, 27)
     print(bit_f.format(b))
-    assert (b == 0b01001101111111111111111111111111)
+    assert (b == 0b0100110111111111111111111111111111111111111111111111111111111111)
     c = rpu.add(a, b)
     print(bit_f.format(c))
-    assert (c == 0b01100101101110111010111111111111)
+    assert (c == 0b0110010110111011101011111111111111111111111111111111111111111111)
     d = rpu.sub(a, b)
     print(bit_f.format(d))
-    assert (d == 0b11011011001110011001010111111111)
+    assert (d == 0b1101101100111001100101011111111111111111111111111111111111111111)
     e = rpu.mul(a, b)
     print(bit_f.format(e))
-    assert (e == 0b11110010110111011101011111111111)
+    assert (e == 0b1111001011011101110101111111111111111111111111111111111111111111)
     f = rpu.div(a, b)
     print(bit_f.format(f))
-    assert (f == 0b11101111011101111111111111111111)
+    assert (f == 0b1110111101110111111111111111111111111111111111111111111111111111)
 
     a = rpu.new(3713, 28276)
     print(bit_f.format(a))
@@ -330,10 +346,43 @@ if __name__ == "__main__":
     for i in range(1 << 16):
         n_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
         d_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        try:
+            a = rpu.new(n_0, d_0)
+        except ZeroByZeroDivisionError:
+            continue
+
+        gcd = math.gcd(n_0, d_0)
+
+        if gcd != 0:
+            n_0, d_0 = n_0 / gcd, d_0 / gcd
+
+        n_1, d_1 = rpu.frac(a)
+
+        gcd = math.gcd(n_1, d_1)
+
+        if gcd != 0:
+            n_1, d_1 = n_1 / gcd, d_1 / gcd
+
+        if d_0 < 0:
+            n_0 = -n_0
+            d_0 = -d_0
+        if n_0 != n_1 or d_0 != d_1:
+            print("%d: \n%d / %d != %d / %d\n" % (i, n_0, d_0, n_1, d_1))
+        assert(n_0 == n_1 and d_0 == d_1)
+
+    for i in range(1 << 16):
+        n_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        d_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
         n_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
         d_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
-        a = rpu.new(n_0, d_0)
-        b = rpu.new(n_1, d_1)
+        try:
+            a = rpu.new(n_0, d_0)
+        except ZeroByZeroDivisionError:
+            continue
+        try:
+            b = rpu.new(n_1, d_1)
+        except ZeroByZeroDivisionError:
+            continue
         c = rpu.add(a, b)
         if d_0 < 0:
             n_0 = -n_0
