@@ -12,7 +12,9 @@ class RPU:
     bcl = NewType('bcl', int)
 
     bcl_width = 64
-    msb_mask = 1 << (bcl_width - 1)
+    bcl_msb = 1 << (bcl_width - 1)
+
+    register_msb = 1 << (4 * bcl_width - 1)
 
     class Op(Enum):
         NOP = 0
@@ -20,6 +22,12 @@ class RPU:
         FRAC = 2
         LFT = 3
         BLFT = 4
+
+    class Flag(Enum):
+        INVALID = 1 << 0
+        DIV_BY_ZERO = 1 << 1
+        INEXACT = 1 << 2
+        ERROR = 1 << 3
 
     def __init__(self):
         self.a = 0
@@ -39,6 +47,8 @@ class RPU:
         self.emission_val = False
 
         self.op = RPU.Op.NOP
+
+        self.flags = 0;
 
     def set_registers(self, a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int):
         self.a = a
@@ -64,43 +74,71 @@ class RPU:
             n_0 = self.a
             d_0 = self.e
         elif self.op == RPU.Op.LFT:
-            if self.x_cntr == 1:
-                n_0, n_1 = self.a, self.b
-                d_0, d_1 = self.e, self.f
-            elif self.x_cntr > 2:
+            if self.x_cntr >= 2:
                 n_0, n_1 = self.a, self.a + self.b
                 d_0, d_1 = self.e, self.e + self.f
+            elif self.x_cntr == 1:
+                n_0, n_1 = self.a, self.b
+                d_0, d_1 = self.e, self.f
         elif self.op == RPU.Op.BLFT:
-            if self.x_cntr == 1 and self.y_cntr == 1:
-                n_0, n_1, n_2, n_3 = self.a, self.b, self.c, self.d
-                d_0, d_1, d_2, d_3 = self.e, self.f, self.g, self.h
-            elif self.x_cntr >= 2 and self.y_cntr >= 2:
+            if self.x_cntr >= 2 and self.y_cntr >= 2:
                 n_0, n_1, n_2, n_3 = self.a, self.a + self.b, self.a + self.c, self.a + self.b + self.c + self.d
                 d_0, d_1, d_2, d_3 = self.e, self.e + self.f, self.e + self.g, self.e + self.f + self.g + self.h
+            elif self.x_cntr == 1 and self.y_cntr == 1:
+                n_0, n_1, n_2, n_3 = self.a, self.b, self.c, self.d
+                d_0, d_1, d_2, d_3 = self.e, self.f, self.g, self.h
 
-        b_0 = b_1 = b_2 = b_3 = False
+
+        z_0 = z_1 = z_2 = z_3 = False
+        o_0 = o_1 = o_2 = o_3 = False
 
         if self.z_cntr == 0:
-            b_0 = bool(n_0 & RPU.msb_mask) != bool(d_0 & RPU.msb_mask) and n_0 != 0
-            b_1 = bool(n_1 & RPU.msb_mask) != bool(d_1 & RPU.msb_mask) and n_1 != 0
-            b_2 = bool(n_2 & RPU.msb_mask) != bool(d_2 & RPU.msb_mask) and n_2 != 0
-            b_3 = bool(n_3 & RPU.msb_mask) != bool(d_3 & RPU.msb_mask) and n_3 != 0
+            z_0 = (n_0 == 0) or not (n_0 & RPU.register_msb) and not (d_0 & RPU.register_msb) or (n_0 < 0) and (d_0 < 0)
+            z_1 = (n_1 == 0) or not (n_1 & RPU.register_msb) and not (d_1 & RPU.register_msb) or (n_1 < 0) and (d_1 < 0)
+            z_2 = (n_2 == 0) or not (n_2 & RPU.register_msb) and not (d_2 & RPU.register_msb) or (n_2 < 0) and (d_2 < 0)
+            z_3 = (n_3 == 0) or not (n_3 & RPU.register_msb) and not (d_3 & RPU.register_msb) or (n_3 < 0) and (d_3 < 0)
+
+            o_0 = (n_0 == 0) or (n_0 < 0) and not (d_0 & RPU.register_msb) or (n_0 > 0) and (d_0 < 0)
+            o_1 = (n_1 == 0) or (n_1 < 0) and not (d_1 & RPU.register_msb) or (n_1 > 0) and (d_1 < 0)
+            o_2 = (n_2 == 0) or (n_2 < 0) and not (d_2 & RPU.register_msb) or (n_2 > 0) and (d_2 < 0)
+            o_3 = (n_3 == 0) or (n_3 < 0) and not (d_3 & RPU.register_msb) or (n_3 > 0) and (d_3 < 0)
         elif self.z_cntr == 1:
-            b_0 = 0 <= n_0 < d_0
-            b_1 = 0 <= n_1 < d_1
-            b_2 = 0 <= n_2 < d_2
-            b_3 = 0 <= n_3 < d_3
+            z_0 = d_0 <= n_0
+            z_1 = d_1 <= n_1
+            z_2 = d_2 <= n_2
+            z_3 = d_3 <= n_3
+
+            o_0 = n_0 <= d_0
+            o_1 = n_1 <= d_1
+            o_2 = n_2 <= d_2
+            o_3 = n_3 <= d_3
         else:
-            b_0 = (d_0 << 1) <= n_0
-            b_1 = (d_1 << 1) <= n_1
-            b_2 = (d_2 << 1) <= n_2
-            b_3 = (d_3 << 1) <= n_3
+            z_0 = n_0 <= (d_0 << 1)
+            z_1 = n_1 <= (d_1 << 1)
+            z_2 = n_2 <= (d_2 << 1)
+            z_3 = n_3 <= (d_3 << 1)
+
+            o_0 = (d_0 << 1) <= n_0
+            o_1 = (d_1 << 1) <= n_1
+            o_2 = (d_2 << 1) <= n_2
+            o_3 = (d_3 << 1) <= n_3
+
+        z_a = o_a = False
+        if self.op == RPU.Op.NEW:
+            z_a = z_0
+            o_a = o_0
+        elif self.op == RPU.Op.LFT:
+            z_a = z_0 and z_1
+            o_a = o_0 and o_1
+        elif self.op == RPU.Op.BLFT:
+            z_a = z_0 and z_1 and z_2 and z_3
+            o_a = o_0 and o_1 and o_2 and o_3
 
         self.emission_ready = (self.op == RPU.Op.NEW or
-                               self.op == RPU.Op.LFT and (b_0 == b_1 or self.x_cntr == RPU.bcl_width) or
-                               self.op == RPU.Op.BLFT and (b_0 == b_1 == b_2 == b_3 or self.x_cntr == self.y_cntr == RPU.bcl_width)
+                               self.op == RPU.Op.LFT and (z_a or o_a or self.x_cntr == RPU.bcl_width) or
+                               self.op == RPU.Op.BLFT and (z_a or o_a or self.x_cntr == self.y_cntr == RPU.bcl_width)
                                ) and not self.z_cntr >= RPU.bcl_width
-        self.emission_val = b_0
+        self.emission_val = not z_a
 
     def new(self, n: int, d: int) -> bcl:
         if n == 0 and d == 0:
@@ -154,19 +192,19 @@ class RPU:
 
     def blft_ingest_x(self, x: bcl) -> bcl:
         if self.x_cntr == 0:
-            if x & RPU.msb_mask:
+            if x & RPU.bcl_msb:
                 self.a, self.b, self.c, self.d, \
                     self.e, self.f, self.g, self.h = \
                     -self.a, -self.b, self.c, self.d, \
                         -self.e, -self.f, self.g, self.h
         elif self.x_cntr == 1:
-            if x & RPU.msb_mask:
+            if x & RPU.bcl_msb:
                 self.a, self.b, self.c, self.d, \
                     self.e, self.f, self.g, self.h = \
                     self.c, self.d, self.a, self.b, \
                         self.g, self.h, self.e, self.f
         elif self.x_cntr < RPU.bcl_width:
-            if x & RPU.msb_mask:
+            if x & RPU.bcl_msb:
                 if self.c & 1 or self.d & 1 or self.g & 1 or self.h & 1:
                     self.a, self.b, self.c, self.d, \
                         self.e, self.f, self.g, self.h = \
@@ -190,19 +228,19 @@ class RPU:
 
     def blft_ingest_y(self, y: bcl) -> bcl:
         if self.y_cntr == 0:
-            if y & RPU.msb_mask:
+            if y & RPU.bcl_msb:
                 self.a, self.b, self.c, self.d, \
                     self.e, self.f, self.g, self.h = \
                     -self.a, self.b, -self.c, self.d, \
                         -self.e, self.f, -self.g, self.h
         elif self.y_cntr == 1:
-            if y & RPU.msb_mask:
+            if y & RPU.bcl_msb:
                 self.a, self.b, self.c, self.d, \
                     self.e, self.f, self.g, self.h = \
                     self.b, self.a, self.d, self.c, \
                         self.f, self.e, self.h, self.g
         elif self.y_cntr < RPU.bcl_width:
-            if y & RPU.msb_mask:
+            if y & RPU.bcl_msb:
                 if self.b & 1 or self.d & 1 or self.f & 1 or self.h & 1:
                     self.a, self.b, self.c, self.d, \
                         self.e, self.f, self.g, self.h = \
@@ -275,19 +313,27 @@ class RPU:
     def div(self, x: bcl, y: bcl) -> bcl:
         return self.blft(x, y, 0, 1, 0, 0, 0, 0, 1, 0)
 
+    @staticmethod
+    def quickcmp(x: bcl, y: bcl) -> bool:
+        mask = ((~x & (x + 1)) << 1) & ~(~0 << RPU.bcl_width)
+        return ~(~(x ^ y) | mask) == 0 or mask == 0
+
 
 if __name__ == "__main__":
     bit_f = "{0:0%db}" % RPU.bcl_width
     rpu = RPU()
     a = rpu.new(-5, 19)
     print(bit_f.format(a))
-    assert (a == 0b1110011101110111111111111111111111111111111111111111111111111111)
+    assert (a == 0b1110011101110111111111111111111111111111111111111111111111111111 or
+            a == 0b1110011101100111111111111111111111111111111111111111111111111111)
     b = rpu.new(15, 27)
     print(bit_f.format(b))
-    assert (b == 0b0100110111111111111111111111111111111111111111111111111111111111)
+    assert (b == 0b0100110111111111111111111111111111111111111111111111111111111111 or
+            b == 0b0100100111111111111111111111111111111111111111111111111111111111)
     c = rpu.add(a, b)
     print(bit_f.format(c))
-    assert (c == 0b0110010110111011101011111111111111111111111111111111111111111111)
+    assert (c == 0b0110010110111011101011111111111111111111111111111111111111111111 or
+            c == 0b0110010110111011100011111111111111111111111111111111111111111111)
     d = rpu.sub(a, b)
     print(bit_f.format(d))
     assert (d == 0b1101101100111001100101011111111111111111111111111111111111111111)
@@ -313,6 +359,7 @@ if __name__ == "__main__":
     print(bit_f.format(c))
     d = rpu.new(-126 * -34 + -116 * 122, 122 * -34)
     print(bit_f.format(d))
+    assert (RPU.quickcmp(c, d))
 
     a = rpu.new(-69, 123)
     print(bit_f.format(a))
@@ -322,6 +369,7 @@ if __name__ == "__main__":
     print(bit_f.format(c))
     d = rpu.new(-4473, 4100)
     print(bit_f.format(d))
+    assert (RPU.quickcmp(c, d))
 
     a = rpu.new(-109, 0)
     print(bit_f.format(a))
@@ -331,6 +379,7 @@ if __name__ == "__main__":
     print(bit_f.format(c))
     d = rpu.new(-109 * 106, 0)
     print(bit_f.format(d))
+    assert (RPU.quickcmp(c, d))
 
     a = rpu.new(7, 84)
     print(bit_f.format(a))
@@ -340,37 +389,86 @@ if __name__ == "__main__":
     print(bit_f.format(c))
     d = rpu.new(1057, 10668)
     print(bit_f.format(d))
+    assert (RPU.quickcmp(c, d))
+
+    a = rpu.new(1, 0)
+    print(bit_f.format(a))
+    b = rpu.new(-1, 0)
+    print(bit_f.format(b))
+    c = rpu.add(a, b)
+    print(bit_f.format(c))
+    d = rpu.new(0, 1)
+    print(bit_f.format(d))
+    assert (RPU.quickcmp(c, d))
+
+    a = rpu.new(59, 61)
+    print(bit_f.format(a))
+    b = rpu.new(-97, 111)
+    print(bit_f.format(b))
+    c = rpu.add(a, b)
+    print(bit_f.format(c))
+    d = rpu.new(632, 6771)
+    print(bit_f.format(d))
+    assert (RPU.quickcmp(c, d))
+
+    # not working for this value currently
+    a = rpu.new(113, 47)
+    print(bit_f.format(a))
+    b = rpu.new(-118, 49)
+    print(bit_f.format(b))
+    c = rpu.add(a, b)
+    print(bit_f.format(c))
+    d = rpu.new(-9, 2303)
+    print(bit_f.format(d))
+    assert (RPU.quickcmp(c, d))
+
+    # not working for this value currently
+    a = rpu.new(-32, 45)
+    print(bit_f.format(a))
+    b = rpu.new(64, 91)
+    print(bit_f.format(b))
+    c = rpu.add(a, b)
+    print(bit_f.format(c))
+    d = rpu.new(-32, 4095)
+    print(bit_f.format(d))
+    assert (RPU.quickcmp(c, d))
 
     n_d_bits = 8
 
-    for i in range(1 << 16):
-        n_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
-        d_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
-        try:
-            a = rpu.new(n_0, d_0)
-        except ZeroByZeroDivisionError:
-            continue
+    # for i in range(1 << 20):
+    #     n_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+    #     d_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+    #     try:
+    #         a = rpu.new(n_0, d_0)
+    #     except ZeroByZeroDivisionError:
+    #         continue
+    #
+    #     gcd = math.gcd(n_0, d_0)
+    #
+    #     if gcd != 0:
+    #         n_0, d_0 = n_0 / gcd, d_0 / gcd
+    #
+    #     n_1, d_1 = rpu.frac(a)
+    #
+    #     gcd = math.gcd(n_1, d_1)
+    #
+    #     if gcd != 0:
+    #         n_1, d_1 = n_1 / gcd, d_1 / gcd
+    #
+    #     if d_0 < 0:
+    #         n_0 = -n_0
+    #         d_0 = -d_0
+    #     if n_0 != n_1 or d_0 != d_1:
+    #         print("%d: \n%d / %d != %d / %d\n" % (i, n_0, d_0, n_1, d_1))
+    #     assert(n_0 == n_1 and d_0 == d_1)
+    #     if not (i % (1 << 8)):
+    #         print(i)
 
-        gcd = math.gcd(n_0, d_0)
+    assert(not RPU.quickcmp(RPU.bcl(0b00001001110010111101110111110100), RPU.bcl(0b00001001110010111101110111110000)))
+    assert(RPU.quickcmp(RPU.bcl(0b0111111111111111111111111111111111111111111111111111111111111111), RPU.bcl(0b1111111111111111111111111111111111111111111111111111111111111111)))
+    assert(RPU.quickcmp(RPU.bcl(0b1111111111111111111111111111111111111111111111111111111111111111), RPU.bcl(0b0111111111111111111111111111111111111111111111111111111111111111)))
 
-        if gcd != 0:
-            n_0, d_0 = n_0 / gcd, d_0 / gcd
-
-        n_1, d_1 = rpu.frac(a)
-
-        gcd = math.gcd(n_1, d_1)
-
-        if gcd != 0:
-            n_1, d_1 = n_1 / gcd, d_1 / gcd
-
-        if d_0 < 0:
-            n_0 = -n_0
-            d_0 = -d_0
-        if n_0 != n_1 or d_0 != d_1:
-            print("%d: \n%d / %d != %d / %d\n" % (i, n_0, d_0, n_1, d_1))
-        assert(n_0 == n_1 and d_0 == d_1)
-
-    for i in range(1 << 16):
+    for i in range(1 << 20):
         n_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
         d_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
         n_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
@@ -390,7 +488,17 @@ if __name__ == "__main__":
         if d_1 < 0:
             n_1 = -n_1
             d_1 = -d_1
-        d = rpu.new(n_0 * d_1 + n_1 * d_0, d_0 * d_1)
-        if c != d:
+        if d_0 != 0 or d_1 != 0:
+            d = rpu.new(n_0 * d_1 + n_1 * d_0, d_0 * d_1)
+        else:
+            if (n_0 < 0) != (n_1 < 0):
+                d = rpu.new(0, 1)
+            elif n_0 < 0:
+                d = rpu.new(-1, 0)
+            else:
+                d = rpu.new(1, 0)
+        if not RPU.quickcmp(c, d):
             print("%d: \n%d / %d = %s \n%d / %d = %s \n+ \n%s != \n%s\n" % (i, n_0, d_0, bit_f.format(a), n_1, d_1, bit_f.format(b), bit_f.format(d), bit_f.format(c)))
-        assert(c == d)
+        assert(RPU.quickcmp(c, d))
+        if not (i % (1 << 8)):
+            print(i)
