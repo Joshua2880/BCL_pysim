@@ -1,2 +1,2 @@
 # BCL_pysim
-Simulation of a Binary Continued Logarithm based arithmetic unit.
+Python simulation of a [Binary Continued Logarithm based arithmetic unit](https://github.com/Joshua2880/RPU).
