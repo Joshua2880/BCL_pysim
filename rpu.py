@@ -1,6 +1,7 @@
 import random
 from typing import NewType
 from enum import Enum
+from enum import IntEnum
 import math
 
 
@@ -11,7 +12,7 @@ class ZeroByZeroDivisionError(ArithmeticError):
 class RPU:
     bcl = NewType('bcl', int)
 
-    bcl_width = 64
+    bcl_width = 512
     bcl_msb = 1 << (bcl_width - 1)
 
     register_msb = 1 << (4 * bcl_width - 1)
@@ -23,7 +24,7 @@ class RPU:
         LFT = 3
         BLFT = 4
 
-    class Flag(Enum):
+    class Flag(IntEnum):
         INVALID = 1 << 0
         DIV_BY_ZERO = 1 << 1
         INEXACT = 1 << 2
@@ -143,6 +144,10 @@ class RPU:
                                self.op == RPU.Op.BLFT and (z_a or o_a)
                                ) and not self.z_cntr >= RPU.bcl_width
         self.emission_val = not ingest_finished and not z_a or ingest_finished and not z_0
+
+        self.flags = 0
+        if n_0 == 0 and d_0 == 0:
+            self.flags |= self.Flag.INVALID
 
     def new(self, n: int, d: int) -> bcl:
         if n == 0 and d == 0:
@@ -326,11 +331,57 @@ class RPU:
 if __name__ == "__main__":
     bit_f = "{0:0%db}" % RPU.bcl_width
     rpu = RPU()
+
+    x = rpu.new(77617, 1)
+    y = rpu.new(33096, 1)
+
+    x_2 = rpu.mul(x, x)
+    y_2 = rpu.mul(y, y)
+    y_4 = rpu.mul(y_2, y_2)
+    y_6 = rpu.mul(y_4, y_2)
+
+    n, d = rpu.frac(x_2)
+    print(f"{n} / {d}")
+
+    c1 = rpu.new(1335, 4)
+    c2 = rpu.new(11, 1)
+    c4 = rpu.new(121, 1)
+    c5 = rpu.new(2, 1)
+    c6 = rpu.new(11, 2)
+    c7 = rpu.new(1, 2)
+
+    e1 = rpu.mul(c1, y_6)
+
+    e2_1 = rpu.mul(c2, x_2)
+    e2_1 = rpu.mul(e2_1, y_2)
+
+    e2_3 = rpu.mul(c4, y_4)
+
+    e2 = rpu.sub(e2_1, y_6)
+    e2 = rpu.sub(e2, e2_3)
+    e2 = rpu.sub(e2, c5)
+    e2 = rpu.mul(e2, x_2)
+
+    e3 = rpu.mul(c6, y)
+
+    e4 = rpu.mul(c7, x)
+    e4 = rpu.div(e4, y)
+
+    e = rpu.add(e1, e2)
+    e = rpu.add(e, e3)
+    e = rpu.add(e, e4)
+
+    n, d = rpu.frac(e)
+    print(f"{n} / {d}")
+
+
     a = rpu.new(-5, 19)
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     print(bit_f.format(a))
     assert (a == 0b1110011101110111111111111111111111111111111111111111111111111111 or
             a == 0b1110011101100111111111111111111111111111111111111111111111111111)
     b = rpu.new(15, 27)
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     print(bit_f.format(b))
     assert (b == 0b0100110111111111111111111111111111111111111111111111111111111111 or
             b == 0b0100100111111111111111111111111111111111111111111111111111111111)
@@ -338,94 +389,150 @@ if __name__ == "__main__":
     print(bit_f.format(c))
     assert (c == 0b0110010110111011101011111111111111111111111111111111111111111111 or
             c == 0b0110010110111011100011111111111111111111111111111111111111111111)
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     d = rpu.sub(a, b)
     print(bit_f.format(d))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     assert (RPU.quickcmp(d, 0b1101101100111001100101011111111111111111111111111111111111111111))
     e = rpu.mul(a, b)
     print(bit_f.format(e))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     assert (RPU.quickcmp(e, 0b1111001011011101110101111111111111111111111111111111111111111111))
     f = rpu.div(a, b)
     print(bit_f.format(f))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     assert (RPU.quickcmp(f, 0b1110111101110111111111111111111111111111111111111111111111111111))
 
     a = rpu.new(3713, 28276)
     print(bit_f.format(a))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     b = rpu.new(21946, 51272)
     print(bit_f.format(b))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     c = rpu.add(a, b)
     print(bit_f.format(c))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
 
     a = rpu.new(-126, 122)
     print(bit_f.format(a))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     b = rpu.new(-116, -34)
     print(bit_f.format(b))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     c = rpu.add(a, b)
     print(bit_f.format(c))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     d = rpu.new(-126 * -34 + -116 * 122, 122 * -34)
     print(bit_f.format(d))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     assert (RPU.quickcmp(c, d))
 
     a = rpu.new(-69, 123)
     print(bit_f.format(a))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     b = rpu.new(-53, 100)
     print(bit_f.format(b))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     c = rpu.add(a, b)
     print(bit_f.format(c))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     d = rpu.new(-4473, 4100)
     print(bit_f.format(d))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     assert (RPU.quickcmp(c, d))
 
     a = rpu.new(-109, 0)
     print(bit_f.format(a))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     b = rpu.new(84, -106)
     print(bit_f.format(b))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     c = rpu.add(a, b)
     print(bit_f.format(c))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     d = rpu.new(-109 * 106, 0)
     print(bit_f.format(d))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     assert (RPU.quickcmp(c, d))
 
     a = rpu.new(7, 84)
     print(bit_f.format(a))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     b = rpu.new(2, 127)
     print(bit_f.format(b))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     c = rpu.add(a, b)
     print(bit_f.format(c))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     d = rpu.new(1057, 10668)
     print(bit_f.format(d))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     assert (RPU.quickcmp(c, d))
 
     a = rpu.new(59, 61)
     print(bit_f.format(a))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     b = rpu.new(-97, 111)
     print(bit_f.format(b))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     c = rpu.add(a, b)
     print(bit_f.format(c))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     d = rpu.new(632, 6771)
     print(bit_f.format(d))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     assert (RPU.quickcmp(c, d))
 
-    # not working for this value currently
     a = rpu.new(113, 47)
     print(bit_f.format(a))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     b = rpu.new(-118, 49)
     print(bit_f.format(b))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     c = rpu.add(a, b)
     print(bit_f.format(c))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     d = rpu.new(-9, 2303)
     print(bit_f.format(d))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     assert (RPU.quickcmp(c, d))
 
-    # not working for this value currently
     a = rpu.new(-32, 45)
     print(bit_f.format(a))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     b = rpu.new(64, 91)
     print(bit_f.format(b))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     c = rpu.add(a, b)
     print(bit_f.format(c))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     d = rpu.new(-32, 4095)
     print(bit_f.format(d))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     assert (RPU.quickcmp(c, d))
+
+    a = rpu.new(1, 0)
+    print(bit_f.format(a))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
+    b = rpu.new(1, 0)
+    print(bit_f.format(b))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
+    c = rpu.add(a, b)
+    print(bit_f.format(c))
+    # assert (not bool(rpu.flags & rpu.Flag.INVALID))
+    d = rpu.new(1, 0)
+    print(bit_f.format(d))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
+    assert (RPU.quickcmp(c, d))
+
+    a = rpu.new(0, 1)
+    print(bit_f.format(a))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
+    b = rpu.new(1, 0)
+    print(bit_f.format(b))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
+    c = rpu.mul(a, b)
+    assert (rpu.flags & rpu.Flag.INVALID)
 
     n_d_bits = 8
 
@@ -467,15 +574,16 @@ if __name__ == "__main__":
         d_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
         n_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
         d_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
-        try:
-            a = rpu.new(n_0, d_0)
-        except ZeroByZeroDivisionError:
+        a = rpu.new(n_0, d_0)
+        if rpu.flags & rpu.Flag.INVALID:
+            assert (n_0 == 0 and d_0 == 0)
             continue
-        try:
-            b = rpu.new(n_1, d_1)
-        except ZeroByZeroDivisionError:
+        b = rpu.new(n_1, d_1)
+        if rpu.flags & rpu.Flag.INVALID:
+            assert (n_1 == 0 and d_1 == 0)
             continue
         c = rpu.add(a, b)
+        assert (not bool(rpu.flags & rpu.Flag.INVALID))
         if d_0 < 0:
             n_0 = -n_0
             d_0 = -d_0
@@ -491,6 +599,7 @@ if __name__ == "__main__":
                 d = rpu.new(-1, 0)
             else:
                 d = rpu.new(1, 0)
+        assert (not bool(rpu.flags & rpu.Flag.INVALID))
         if not RPU.quickcmp(c, d):
             print("%d: \n%d / %d = %s \n%d / %d = %s \n+ \n%s != \n%s\n" % (i, n_0, d_0, bit_f.format(a), n_1, d_1, bit_f.format(b), bit_f.format(d), bit_f.format(c)))
         assert(RPU.quickcmp(c, d))
