@@ -1,7 +1,6 @@
 import random
 from typing import NewType
 from enum import Enum
-import math
 
 
 class ZeroByZeroDivisionError(ArithmeticError):
@@ -48,7 +47,7 @@ class RPU:
 
         self.op = RPU.Op.NOP
 
-        self.flags = 0;
+        self.flags = 0
 
     def set_registers(self, a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int):
         self.a = a
@@ -314,9 +313,31 @@ class RPU:
         return self.blft(x, y, 0, 1, 0, 0, 0, 0, 1, 0)
 
     @staticmethod
+    def bcl2int(x: bcl) -> int:
+        width_mask = ~(~0 << RPU.bcl_width)
+        grey_code = x ^ (width_mask >> 1)
+        result = 0
+        for i in range(RPU.bcl_width):
+            result ^= grey_code >> i
+        return (result >> 1) + (result & 1)
+
+    @staticmethod
+    def int2bcl(x: int) -> bcl:
+        width_mask = ~(~0 << RPU.bcl_width)
+        return (x << 1) ^ x ^ (width_mask >> 1)
+
+    @staticmethod
     def quickcmp(x: bcl, y: bcl) -> bool:
         mask = ((~x & (x + 1)) << 1) & ~(~0 << RPU.bcl_width)
         return ~(~(x ^ y) | mask) == 0 or mask == 0
+
+    @staticmethod
+    def abs(x: bcl) -> bcl:
+        return RPU.bcl(~RPU.bcl_msb & x)
+
+    @staticmethod
+    def gtz(x: bcl) -> bcl:
+        return x != ~RPU.bcl_msb and not x & RPU.bcl_msb
 
 
 if __name__ == "__main__":
