@@ -192,7 +192,7 @@ class RPU:
         return z
 
     def normalize_sign(self):
-        if self.e < 0:
+        if self.e < 0 or self.f < 0 or self.g < 0 or self.h < 0:
             self.a, self.b, self.c, self.d, \
                 self.e, self.f, self.g, self.h = \
                 -self.a, -self.b, -self.c, -self.d, \
@@ -352,6 +352,11 @@ class RPU:
 if __name__ == "__main__":
     bit_f = "{0:0%db}" % RPU.bcl_width
     rpu = RPU()
+
+    x = rpu.new(-107, 85)
+    y = rpu.new(-2844456, 110075)
+    result = rpu.div(x, y)
+    assert(result == 0x7D21B9CFB07FFFFF)
 
     x = rpu.new(77617, 1)
     y = rpu.new(33096, 1)
