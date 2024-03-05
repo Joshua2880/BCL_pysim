@@ -88,20 +88,42 @@ class RPU:
                 n_0, n_1, n_2, n_3 = self.a, self.b, self.c, self.d
                 d_0, d_1, d_2, d_3 = self.e, self.f, self.g, self.h
 
+        if d_0 < 0:
+            d_0 = -d_0
+            n_0 = -n_0
+        if d_1 < 0:
+            d_1 = -d_1
+            n_1 = -n_1
+        if d_2 < 0:
+            d_2 = -d_2
+            n_2 = -n_2
+        if d_3 < 0:
+            d_3 = -d_3
+            n_3 = -n_3
+
+        if self.z_cntr != 0:
+            if n_0 < 0 and d_0 == 0:
+                n_0 = -n_0
+            if n_1 < 0 and d_1 == 0:
+                n_1 = -n_1
+            if n_2 < 0 and d_2 == 0:
+                n_2 = -n_2
+            if n_3 < 0 and d_3 == 0:
+                n_3 = -n_3
 
         z_0 = z_1 = z_2 = z_3 = False
         o_0 = o_1 = o_2 = o_3 = False
 
         if self.z_cntr == 0:
-            z_0 = (n_0 == 0) or not (n_0 & RPU.register_msb) and not (d_0 & RPU.register_msb) or (n_0 < 0) and (d_0 < 0)
-            z_1 = (n_1 == 0) or not (n_1 & RPU.register_msb) and not (d_1 & RPU.register_msb) or (n_1 < 0) and (d_1 < 0)
-            z_2 = (n_2 == 0) or not (n_2 & RPU.register_msb) and not (d_2 & RPU.register_msb) or (n_2 < 0) and (d_2 < 0)
-            z_3 = (n_3 == 0) or not (n_3 & RPU.register_msb) and not (d_3 & RPU.register_msb) or (n_3 < 0) and (d_3 < 0)
+            z_0 = 0 <= n_0 and not (n_0 == 0 and d_0 == 0)
+            z_1 = 0 <= n_1 and not (n_1 == 0 and d_1 == 0)
+            z_2 = 0 <= n_2 and not (n_2 == 0 and d_2 == 0)
+            z_3 = 0 <= n_3 and not (n_3 == 0 and d_3 == 0)
 
-            o_0 = (n_0 == 0) or (n_0 < 0) and not (d_0 & RPU.register_msb) or (n_0 > 0) and (d_0 < 0)
-            o_1 = (n_1 == 0) or (n_1 < 0) and not (d_1 & RPU.register_msb) or (n_1 > 0) and (d_1 < 0)
-            o_2 = (n_2 == 0) or (n_2 < 0) and not (d_2 & RPU.register_msb) or (n_2 > 0) and (d_2 < 0)
-            o_3 = (n_3 == 0) or (n_3 < 0) and not (d_3 & RPU.register_msb) or (n_3 > 0) and (d_3 < 0)
+            o_0 = n_0 < 0
+            o_1 = n_1 < 0
+            o_2 = n_2 < 0
+            o_3 = n_3 < 0
         elif self.z_cntr == 1:
             z_0 = d_0 <= n_0
             z_1 = d_1 <= n_1
@@ -191,13 +213,6 @@ class RPU:
 
         return z
 
-    def normalize_sign(self):
-        if self.e < 0 or self.f < 0 or self.g < 0 or self.h < 0:
-            self.a, self.b, self.c, self.d, \
-                self.e, self.f, self.g, self.h = \
-                -self.a, -self.b, -self.c, -self.d, \
-                    -self.e, -self.f, -self.g, -self.h
-
     def blft_ingest_x(self, x: bcl) -> bcl:
         if self.x_cntr == 0:
             if x & RPU.bcl_msb:
@@ -228,8 +243,6 @@ class RPU:
                     self.e, self.f, self.g, self.h = \
                     self.a + self.c, self.b + self.d, self.a, self.b, \
                         self.e + self.g, self.f + self.h, self.e, self.f
-
-        self.normalize_sign()
 
         self.x_cntr += 1
         return RPU.bcl(x << 1)
@@ -264,8 +277,6 @@ class RPU:
                     self.e, self.f, self.g, self.h = \
                     self.a + self.b, self.a, self.c + self.d, self.c, \
                         self.e + self.f, self.e, self.g + self.h, self.g
-
-        self.normalize_sign()
 
         self.y_cntr += 1
         return RPU.bcl(y << 1)
@@ -303,8 +314,6 @@ class RPU:
                     self.e, self.f, self.g, self.h = \
                     self.e, self.f, self.g, self.h, \
                         self.a - self.e, self.b - self.f, self.c - self.g, self.d - self.h
-
-        self.normalize_sign()
 
         self.z_cntr += 1
         return RPU.bcl(z)
