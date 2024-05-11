@@ -290,7 +290,7 @@ if __name__ == "__main__":
     x = rpu.new(-107, 85)
     y = rpu.new(-2844456, 110075)
     result = rpu.div(x, y)
-    assert(result == 0x7D21B9CFB07FFFFF)
+    assert (RPU.quickcmp(result, 0x7D21B9CFB07FFFFF))
 
     x = rpu.new(77617, 1)
     y = rpu.new(33096, 1)
@@ -317,23 +317,26 @@ if __name__ == "__main__":
 
     e2_3 = rpu.mul(c4, y_4)
 
-    e2 = rpu.sub(e2_1, y_6)
-    e2 = rpu.sub(e2, e2_3)
-    e2 = rpu.sub(e2, c5)
-    e2 = rpu.mul(e2, x_2)
+    try:
+        e2 = rpu.sub(e2_1, y_6)
+        assert (False)
+        e2 = rpu.sub(e2, e2_3)
+        e2 = rpu.sub(e2, c5)
+        e2 = rpu.mul(e2, x_2)
 
-    e3 = rpu.mul(c6, y)
+        e3 = rpu.mul(c6, y)
 
-    e4 = rpu.mul(c7, x)
-    e4 = rpu.div(e4, y)
+        e4 = rpu.mul(c7, x)
+        e4 = rpu.div(e4, y)
 
-    e = rpu.add(e1, e2)
-    e = rpu.add(e, e3)
-    e = rpu.add(e, e4)
+        e = rpu.add(e1, e2)
+        e = rpu.add(e, e3)
+        e = rpu.add(e, e4)
 
-    n, d = rpu.frac(e)
-    print(f"{n} / {d}")
-
+        n, d = rpu.frac(e)
+        print(f"{n} / {d}")
+    except ZeroByZeroDivisionError:
+        assert (True)
 
     a = rpu.new(-5, 19)
     assert (not bool(rpu.flags & rpu.Flag.INVALID))
@@ -479,7 +482,7 @@ if __name__ == "__main__":
     assert (not bool(rpu.flags & rpu.Flag.INVALID))
     c = rpu.add(a, b)
     print(bit_f.format(c))
-    # assert (not bool(rpu.flags & rpu.Flag.INVALID))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
     d = rpu.new(1, 0)
     print(bit_f.format(d))
     assert (not bool(rpu.flags & rpu.Flag.INVALID))
@@ -491,8 +494,27 @@ if __name__ == "__main__":
     b = rpu.new(1, 0)
     print(bit_f.format(b))
     assert (not bool(rpu.flags & rpu.Flag.INVALID))
-    c = rpu.mul(a, b)
-    assert (rpu.flags & rpu.Flag.INVALID)
+    try:
+        c = rpu.mul(a, b)
+        assert (False)
+    except ZeroByZeroDivisionError:
+        assert (True)
+
+    a = rpu.new(2, 103)
+    print(bit_f.format(a))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
+    b = rpu.new(-114, 112)
+    print(bit_f.format(b))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
+    c = rpu.add(a, b)
+    print(bit_f.format(c))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
+    d = rpu.new(-5759, 5768)
+    print(bit_f.format(d))
+    print(RPU.debugRenderer(c))
+    print(RPU.debugRenderer(d))
+    assert (not bool(rpu.flags & rpu.Flag.INVALID))
+    # assert (RPU.quickcmp(c, d))
 
     a = rpu.new(2, 1)
     b = rpu.lft(a, 6, -13, 2, -5)
@@ -530,25 +552,160 @@ if __name__ == "__main__":
     #     if not (i % (1 << 8)):
     #         print(i)
 
-    assert(not RPU.quickcmp(RPU.bcl(0b00001001110010111101110111110100), RPU.bcl(0b00001001110010111101110111110000)))
-    assert(RPU.quickcmp(RPU.bcl(0b0111111111111111111111111111111111111111111111111111111111111111), RPU.bcl(0b1111111111111111111111111111111111111111111111111111111111111111)))
-    assert(RPU.quickcmp(RPU.bcl(0b1111111111111111111111111111111111111111111111111111111111111111), RPU.bcl(0b0111111111111111111111111111111111111111111111111111111111111111)))
+    assert (not RPU.quickcmp(RPU.bcl(0b00001001110010111101110111110100),
+                             RPU.bcl(0b00001001110010111101110111110000)))
+    assert (RPU.quickcmp(RPU.bcl(0b0111111111111111111111111111111111111111111111111111111111111111),
+                         RPU.bcl(0b1111111111111111111111111111111111111111111111111111111111111111)))
+    assert (RPU.quickcmp(RPU.bcl(0b1111111111111111111111111111111111111111111111111111111111111111),
+                         RPU.bcl(0b0111111111111111111111111111111111111111111111111111111111111111)))
 
-    for i in range(1 << 20):
+    a = rpu.new(57, 13)
+    b = rpu.new(19, 27)
+    c = rpu.div(a, b)
+
+    for i in range(1 << 16):
         n_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
         d_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
         n_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
         d_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
-        a = rpu.new(n_0, d_0)
-        if rpu.flags & rpu.Flag.INVALID:
+        try:
+            a = rpu.new(n_0, d_0)
+        except ZeroByZeroDivisionError:
             assert (n_0 == 0 and d_0 == 0)
             continue
-        b = rpu.new(n_1, d_1)
-        if rpu.flags & rpu.Flag.INVALID:
+        try:
+            b = rpu.new(n_1, d_1)
+        except ZeroByZeroDivisionError:
             assert (n_1 == 0 and d_1 == 0)
             continue
-        c = rpu.add(a, b)
+        try:
+            c = rpu.sub(a, b)
+        except ZeroByZeroDivisionError:
+            print(f"a = {n_0}/{d_0}, b = {n_1}/{d_1}")
+            continue
+        if d_0 < 0:
+            n_0 = -n_0
+            d_0 = -d_0
+        if d_1 < 0:
+            n_1 = -n_1
+            d_1 = -d_1
+        if d_0 != 0 or d_1 != 0:
+            d = rpu.new(n_0 * d_1 - n_1 * d_0, d_0 * d_1)
+        else:
+            assert ((n_0 < 0) == (n_1 < 0))
+            if n_0 < 0:
+                d = rpu.new(-1, 0)
+            else:
+                d = rpu.new(1, 0)
         assert (not bool(rpu.flags & rpu.Flag.INVALID))
+        if not RPU.quickcmp(c, d):
+            print("%d: \n%d / %d = %s \n%d / %d = %s \n+ \n%s != \n%s\n" % (i, n_0, d_0, bit_f.format(a), n_1, d_1, bit_f.format(b), bit_f.format(d), bit_f.format(c)))
+        assert (RPU.quickcmp(c, d))
+        if not (i % (1 << 8)):
+            print(i)
+
+    for i in range(1 << 16):
+        n_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        d_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        n_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        d_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        try:
+            a = rpu.new(n_0, d_0)
+        except ZeroByZeroDivisionError:
+            assert (n_0 == 0 and d_0 == 0)
+            continue
+        try:
+            b = rpu.new(n_1, d_1)
+        except ZeroByZeroDivisionError:
+            assert (n_1 == 0 and d_1 == 0)
+            continue
+        try:
+            c = rpu.mul(a, b)
+        except ZeroByZeroDivisionError:
+            print(f"a = {n_0}/{d_0}, b = {n_1}/{d_1}")
+            continue
+        if d_0 < 0:
+            n_0 = -n_0
+            d_0 = -d_0
+        if d_1 < 0:
+            n_1 = -n_1
+            d_1 = -d_1
+        if d_0 != 0 and d_1 != 0:
+            d = rpu.new(n_0 * n_1, d_0 * d_1)
+        else:
+            assert (n_0 != 0 and n_1 != 0)
+            if (n_0 < 0) == (n_1 < 0):
+                d = rpu.new(1, 0)
+            else:
+                d = rpu.new(-1, 0)
+        assert (not bool(rpu.flags & rpu.Flag.INVALID))
+        if not RPU.quickcmp(c, d):
+            print("%d: \n%d / %d = %s \n%d / %d = %s \n+ \n%s != \n%s\n" % (i, n_0, d_0, bit_f.format(a), n_1, d_1, bit_f.format(b), bit_f.format(d), bit_f.format(c)))
+        assert (RPU.quickcmp(c, d))
+        if not (i % (1 << 8)):
+            print(i)
+
+    for i in range(1 << 16):
+        n_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        d_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        n_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        d_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        try:
+            a = rpu.new(n_0, d_0)
+        except ZeroByZeroDivisionError:
+            assert (n_0 == 0 and d_0 == 0)
+            continue
+        try:
+            b = rpu.new(n_1, d_1)
+        except ZeroByZeroDivisionError:
+            assert (n_1 == 0 and d_1 == 0)
+            continue
+        try:
+            c = rpu.div(a, b)
+        except ZeroByZeroDivisionError:
+            print(f"a = {n_0}/{d_0}, b = {n_1}/{d_1}")
+            continue
+        if d_0 < 0:
+            n_0 = -n_0
+            d_0 = -d_0
+        if d_1 < 0:
+            n_1 = -n_1
+            d_1 = -d_1
+        if d_0 != 0 and n_1 != 0:
+            d = rpu.new(n_0 * d_1, d_0 * n_1)
+        else:
+            assert (n_0 != 0 and d_1 != 0)
+            if n_0 > 0:
+                d = rpu.new(1, 0)
+            else:
+                d = rpu.new(-1, 0)
+        assert (not bool(rpu.flags & rpu.Flag.INVALID))
+        if not RPU.quickcmp(c, d):
+            print("%d: \n%d / %d = %s \n%d / %d = %s \n+ \n%s != \n%s\n" % (i, n_0, d_0, bit_f.format(a), n_1, d_1, bit_f.format(b), bit_f.format(d), bit_f.format(c)))
+        assert (RPU.quickcmp(c, d))
+        if not (i % (1 << 8)):
+            print(i)
+
+    for i in range(1 << 16):
+        n_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        d_0 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        n_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        d_1 = random.randint(-(1 << (n_d_bits - 1)), 1 << (n_d_bits - 1))
+        try:
+            a = rpu.new(n_0, d_0)
+        except ZeroByZeroDivisionError:
+            assert (n_0 == 0 and d_0 == 0)
+            continue
+        try:
+            b = rpu.new(n_1, d_1)
+        except ZeroByZeroDivisionError:
+            assert (n_1 == 0 and d_1 == 0)
+            continue
+        try:
+            c = rpu.add(a, b)
+        except ZeroByZeroDivisionError:
+            print(f"a = {n_0}/{d_0}, b = {n_1}/{d_1}")
+            continue
         if d_0 < 0:
             n_0 = -n_0
             d_0 = -d_0
@@ -558,15 +715,14 @@ if __name__ == "__main__":
         if d_0 != 0 or d_1 != 0:
             d = rpu.new(n_0 * d_1 + n_1 * d_0, d_0 * d_1)
         else:
-            if (n_0 < 0) != (n_1 < 0):
-                d = rpu.new(0, 1)
-            elif n_0 < 0:
+            assert ((n_0 < 0) == (n_1 < 0))
+            if n_0 < 0:
                 d = rpu.new(-1, 0)
             else:
                 d = rpu.new(1, 0)
         assert (not bool(rpu.flags & rpu.Flag.INVALID))
         if not RPU.quickcmp(c, d):
             print("%d: \n%d / %d = %s \n%d / %d = %s \n+ \n%s != \n%s\n" % (i, n_0, d_0, bit_f.format(a), n_1, d_1, bit_f.format(b), bit_f.format(d), bit_f.format(c)))
-        assert(RPU.quickcmp(c, d))
+        assert (RPU.quickcmp(c, d))
         if not (i % (1 << 8)):
             print(i)
