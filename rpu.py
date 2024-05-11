@@ -282,6 +282,29 @@ class RPU:
     def gtz(x: bcl) -> bcl:
         return x != ~RPU.bcl_msb and not x & RPU.bcl_msb
 
+    @staticmethod
+    def debugRenderer(x: bcl):
+        interval = np.array([[1, 0], [0, 1]], dtype='object')
+        for i in range(RPU.bcl_width):
+            bit = x & RPU.bcl_msb
+            x <<= 1
+            bit_matrix = np.array([[1, 0], [0, 1]], dtype='object')
+            if bit:
+                if i == 0:
+                    bit_matrix = np.array([[-1, 0], [0, 1]])
+                elif i == 1:
+                    bit_matrix = np.array([[0, 1], [1, 0]])
+                else:
+                    bit_matrix = np.array([[2, 0], [0, 1]], dtype='object')
+            elif i > 1:
+                bit_matrix = np.array([[1, 1], [1, 0]], dtype='object')
+            interval @= bit_matrix
+        interval @= np.array([[1, 1], [0, 1]], dtype='object')
+        interval *= 2 * (interval[1] >= 0) - 1
+        common_factors = np.gcd.reduce(interval)
+        interval //= common_factors
+        return f"{interval[0, 0]}/{interval[1, 0]}"
+
 
 if __name__ == "__main__":
     bit_f = "{0:0%db}" % RPU.bcl_width
