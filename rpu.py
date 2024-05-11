@@ -138,6 +138,27 @@ class RPU:
             self.normalize()
         return self.t_reg[0, 0, 0], self.t_reg[1, 0, 0]
 
+    def lft(self, x: bcl, a: int, b: int, c: int, d: int) -> bcl:
+        self.op = RPU.Op.LFT
+        self.init_tensor(a, 0, b, 0, c, 0, d, 0)
+        self.init_cntrs()
+
+        z = RPU.bcl(0)
+
+        while self.out_cntr < RPU.bcl_width:
+            x = self.ingest_x(x)
+            self.in_cntr += 1
+            self.normalize()
+
+            self.update_state()
+            while self.emission_ready:
+                z = self.emmit_z(z)
+                self.out_cntr += 1
+                self.normalize()
+                self.update_state()
+
+        return z
+
     def blft(self, x: bcl, y: bcl, a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int) -> bcl:
         self.op = RPU.Op.BLFT
         self.init_tensor(a, b, c, d, e, f, g, h)
@@ -472,6 +493,11 @@ if __name__ == "__main__":
     assert (not bool(rpu.flags & rpu.Flag.INVALID))
     c = rpu.mul(a, b)
     assert (rpu.flags & rpu.Flag.INVALID)
+
+    a = rpu.new(2, 1)
+    b = rpu.lft(a, 6, -13, 2, -5)
+    c = rpu.new(1, 1)
+    # assert (RPU.quickcmp(b, c))
 
     n_d_bits = 8
 
